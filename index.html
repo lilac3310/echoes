@@ -1,0 +1,715 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Echoes</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Noto Sans JP', sans-serif; background: #f8f6f2; color: #333; min-height: 100vh; }
+
+/* ロック画面 */
+#lock-screen { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; padding: 20px; }
+#lock-screen h1 { font-size: 28px; margin-bottom: 8px; color: #5a4a3a; }
+#lock-screen p { color: #888; margin-bottom: 32px; font-size: 15px; }
+.pin-display { display: flex; gap: 12px; margin-bottom: 24px; }
+.pin-dot { width: 16px; height: 16px; border-radius: 50%; border: 2px solid #c8b89a; background: transparent; transition: background 0.1s; }
+.pin-dot.filled { background: #c8b89a; }
+.pin-pad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; max-width: 280px; width: 100%; }
+.pin-btn { height: 72px; font-size: 24px; border: none; border-radius: 50%; background: #fff; color: #333; cursor: pointer; box-shadow: 0 2px 8px rgba(0,0,0,0.1); transition: background 0.1s; }
+.pin-btn:active { background: #e8ddd0; }
+.pin-btn.del { font-size: 18px; color: #888; }
+.pin-error { color: #e05; font-size: 14px; margin-top: 12px; min-height: 20px; }
+
+/* メインアプリ */
+#app { display: none; flex-direction: column; min-height: 100vh; }
+header { background: #fff; border-bottom: 1px solid #e8e0d8; padding: 12px 16px; position: sticky; top: 0; z-index: 100; }
+.header-row { display: flex; align-items: center; justify-content: space-between; }
+.header-title { font-size: 17px; font-weight: 600; color: #5a4a3a; }
+.header-actions { display: flex; gap: 8px; }
+.icon-btn { width: 44px; height: 44px; border: none; background: transparent; cursor: pointer; border-radius: 10px; font-size: 20px; color: #5a4a3a; display: flex; align-items: center; justify-content: center; }
+.icon-btn:active { background: #f0ece6; }
+
+/* タブ */
+.tab-bar { display: flex; background: #fff; border-bottom: 1px solid #e8e0d8; }
+.tab-btn { flex: 1; padding: 12px; border: none; background: transparent; font-size: 14px; color: #888; cursor: pointer; border-bottom: 3px solid transparent; transition: all 0.2s; }
+.tab-btn.active { color: #5a4a3a; border-bottom-color: #c8b89a; font-weight: 600; }
+
+main { flex: 1; padding: 16px; max-width: 600px; width: 100%; margin: 0 auto; }
+
+/* 日記画面 */
+#diary-view, #calendar-view, #search-view, #settings-view { display: none; }
+#diary-view.active, #calendar-view.active, #search-view.active, #settings-view.active { display: block; }
+
+.date-header { text-align: center; margin-bottom: 20px; }
+.date-big { font-size: 28px; font-weight: 700; color: #5a4a3a; }
+.date-sub { font-size: 14px; color: #888; margin-top: 4px; }
+
+.entry-card { background: #fff; border-radius: 14px; padding: 16px; margin-bottom: 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+.entry-year { font-size: 13px; font-weight: 600; color: #c8b89a; margin-bottom: 8px; }
+.entry-text { font-size: 16px; line-height: 1.7; color: #333; white-space: pre-wrap; word-break: break-all; }
+.entry-meta { font-size: 12px; color: #aaa; margin-top: 8px; }
+
+.today-card { background: #fff; border-radius: 14px; padding: 16px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); border: 2px solid #e8ddd0; }
+.today-label { font-size: 13px; font-weight: 600; color: #c8b89a; margin-bottom: 8px; }
+textarea { width: 100%; border: 1px solid #ddd; border-radius: 10px; padding: 12px; font-size: 16px; font-family: inherit; resize: vertical; min-height: 100px; line-height: 1.7; color: #333; background: #fdfbf9; }
+textarea:focus { outline: none; border-color: #c8b89a; }
+.save-btn { display: block; width: 100%; padding: 14px; background: #c8b89a; color: #fff; border: none; border-radius: 10px; font-size: 16px; font-weight: 600; cursor: pointer; margin-top: 10px; }
+.save-btn:active { background: #b8a88a; }
+
+.nav-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+.nav-btn { padding: 8px 16px; background: #fff; border: 1px solid #ddd; border-radius: 20px; font-size: 14px; color: #5a4a3a; cursor: pointer; }
+.nav-btn:active { background: #f0ece6; }
+
+/* カレンダー */
+.cal-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+.cal-title { font-size: 20px; font-weight: 700; color: #5a4a3a; }
+.cal-nav { width: 44px; height: 44px; border: none; background: #fff; border-radius: 10px; font-size: 18px; cursor: pointer; box-shadow: 0 1px 4px rgba(0,0,0,0.1); color: #5a4a3a; }
+.cal-grid { background: #fff; border-radius: 14px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+.cal-weekdays { display: grid; grid-template-columns: repeat(7, 1fr); background: #f0ece6; }
+.cal-wd { text-align: center; padding: 10px 0; font-size: 12px; font-weight: 600; color: #888; }
+.cal-wd:first-child { color: #e05; }
+.cal-wd:last-child { color: #55a; }
+.cal-days { display: grid; grid-template-columns: repeat(7, 1fr); }
+.cal-day { aspect-ratio: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer; position: relative; border-top: 1px solid #f0ece6; font-size: 15px; }
+.cal-day:active { background: #f8f4f0; }
+.cal-day.empty { cursor: default; }
+.cal-day.today .day-num { background: #c8b89a; color: #fff; border-radius: 50%; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; }
+.cal-day.has-entry::after { content: ''; width: 5px; height: 5px; background: #c8b89a; border-radius: 50%; position: absolute; bottom: 4px; }
+.cal-day.sunday { color: #e05; }
+.cal-day.saturday { color: #55a; }
+
+/* 検索 */
+.search-bar { display: flex; gap: 8px; margin-bottom: 16px; }
+.search-input { flex: 1; padding: 12px 16px; border: 1px solid #ddd; border-radius: 10px; font-size: 16px; background: #fff; }
+.search-input:focus { outline: none; border-color: #c8b89a; }
+.search-btn { padding: 12px 20px; background: #c8b89a; color: #fff; border: none; border-radius: 10px; font-size: 15px; cursor: pointer; font-weight: 600; }
+.search-result { background: #fff; border-radius: 12px; padding: 14px; margin-bottom: 12px; box-shadow: 0 1px 4px rgba(0,0,0,0.07); cursor: pointer; }
+.search-result:active { background: #f8f4f0; }
+.search-date { font-size: 13px; font-weight: 600; color: #c8b89a; margin-bottom: 6px; }
+.search-snippet { font-size: 15px; color: #444; line-height: 1.6; }
+mark { background: #ffe88a; border-radius: 3px; }
+.no-result { text-align: center; color: #aaa; padding: 40px 0; font-size: 15px; }
+
+/* 設定 */
+.settings-section { background: #fff; border-radius: 14px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.06); margin-bottom: 20px; }
+.settings-item { padding: 16px; border-bottom: 1px solid #f0ece6; display: flex; align-items: center; justify-content: space-between; }
+.settings-item:last-child { border-bottom: none; }
+.settings-label { font-size: 16px; color: #333; }
+.settings-action { padding: 8px 16px; background: #f0ece6; border: none; border-radius: 8px; font-size: 14px; color: #5a4a3a; cursor: pointer; }
+.settings-action:active { background: #e8ddd0; }
+.settings-section-title { font-size: 13px; font-weight: 600; color: #aaa; padding: 12px 16px 4px; }
+
+/* モーダル */
+.modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 200; align-items: flex-end; }
+.modal-overlay.open { display: flex; }
+.modal { background: #fff; border-radius: 20px 20px 0 0; padding: 24px 20px; width: 100%; max-width: 600px; margin: 0 auto; }
+.modal h3 { font-size: 18px; margin-bottom: 16px; color: #333; }
+.modal input { width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 10px; font-size: 16px; margin-bottom: 12px; }
+.modal input:focus { outline: none; border-color: #c8b89a; }
+.modal-btns { display: flex; gap: 10px; }
+.modal-btns button { flex: 1; padding: 14px; border: none; border-radius: 10px; font-size: 16px; cursor: pointer; font-weight: 600; }
+.btn-cancel { background: #f0ece6; color: #666; }
+.btn-ok { background: #c8b89a; color: #fff; }
+.modal-error { color: #e05; font-size: 13px; margin-bottom: 8px; min-height: 18px; }
+
+.import-area { border: 2px dashed #ddd; border-radius: 10px; padding: 30px; text-align: center; color: #aaa; font-size: 15px; margin-bottom: 12px; cursor: pointer; }
+.import-area:active { background: #f8f4f0; }
+#import-file { display: none; }
+
+.bottom-nav { display: flex; background: #fff; border-top: 1px solid #e8e0d8; position: sticky; bottom: 0; }
+.bottom-nav-btn { flex: 1; padding: 10px 0 14px; border: none; background: transparent; font-size: 22px; color: #bbb; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 3px; }
+.bottom-nav-btn span { font-size: 10px; }
+.bottom-nav-btn.active { color: #c8b89a; }
+</style>
+</head>
+<body>
+
+<!-- ロック画面 -->
+<div id="lock-screen">
+  <h1>Echoes</h1>
+  <p id="lock-subtitle">PINを入力してください</p>
+  <div class="pin-display" id="pin-display">
+    <div class="pin-dot" id="d0"></div>
+    <div class="pin-dot" id="d1"></div>
+    <div class="pin-dot" id="d2"></div>
+    <div class="pin-dot" id="d3"></div>
+  </div>
+  <div class="pin-pad">
+    <button class="pin-btn" onclick="pinPress('1')">1</button>
+    <button class="pin-btn" onclick="pinPress('2')">2</button>
+    <button class="pin-btn" onclick="pinPress('3')">3</button>
+    <button class="pin-btn" onclick="pinPress('4')">4</button>
+    <button class="pin-btn" onclick="pinPress('5')">5</button>
+    <button class="pin-btn" onclick="pinPress('6')">6</button>
+    <button class="pin-btn" onclick="pinPress('7')">7</button>
+    <button class="pin-btn" onclick="pinPress('8')">8</button>
+    <button class="pin-btn" onclick="pinPress('9')">9</button>
+    <button class="pin-btn" style="visibility:hidden"></button>
+    <button class="pin-btn" onclick="pinPress('0')">0</button>
+    <button class="pin-btn del" onclick="pinDel()">⌫</button>
+  </div>
+  <div class="pin-error" id="pin-error"></div>
+</div>
+
+<!-- メインアプリ -->
+<div id="app">
+  <header>
+    <div class="header-row">
+      <div class="header-title" id="header-title">Echoes</div>
+      <div class="header-actions">
+        <button class="icon-btn" id="search-icon-btn" onclick="showView('search')" title="検索">🔍</button>
+        <button class="icon-btn" onclick="showView('settings')" title="設定">⚙️</button>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <!-- 日記ビュー -->
+    <div id="diary-view" class="active">
+      <div class="date-header">
+        <div class="date-big" id="diary-date-big"></div>
+        <div class="date-sub" id="diary-date-sub"></div>
+      </div>
+      <div class="nav-row">
+        <button class="nav-btn" id="prev-day-btn" onclick="changeDay(-1)">◀ 前日</button>
+        <button class="nav-btn" onclick="goToday()">今日</button>
+        <button class="nav-btn" id="next-day-btn" onclick="changeDay(1)">翌日 ▶</button>
+      </div>
+      <div id="diary-content"></div>
+    </div>
+
+    <!-- カレンダービュー -->
+    <div id="calendar-view">
+      <div class="cal-header">
+        <button class="cal-nav" onclick="calMove(-1)">◀</button>
+        <div class="cal-title" id="cal-title"></div>
+        <button class="cal-nav" onclick="calMove(1)">▶</button>
+      </div>
+      <div class="cal-grid">
+        <div class="cal-weekdays">
+          <div class="cal-wd">日</div><div class="cal-wd">月</div><div class="cal-wd">火</div>
+          <div class="cal-wd">水</div><div class="cal-wd">木</div><div class="cal-wd">金</div>
+          <div class="cal-wd">土</div>
+        </div>
+        <div class="cal-days" id="cal-days"></div>
+      </div>
+    </div>
+
+    <!-- 検索ビュー -->
+    <div id="search-view">
+      <div class="search-bar">
+        <input type="text" class="search-input" id="search-input" placeholder="キーワードを入力..." onkeyup="if(event.key==='Enter')doSearch()">
+        <button class="search-btn" onclick="doSearch()">検索</button>
+      </div>
+      <div id="search-results"></div>
+    </div>
+
+    <!-- 設定ビュー -->
+    <div id="settings-view">
+      <div class="settings-section-title">セキュリティ</div>
+      <div class="settings-section">
+        <div class="settings-item">
+          <div class="settings-label">PINを変更</div>
+          <button class="settings-action" onclick="openChangePinModal()">変更</button>
+        </div>
+      </div>
+      <div class="settings-section-title">データ</div>
+      <div class="settings-section">
+        <div class="settings-item">
+          <div class="settings-label">データをエクスポート</div>
+          <button class="settings-action" onclick="exportData()">書き出し</button>
+        </div>
+        <div class="settings-item">
+          <div class="settings-label">インポート（テキスト）</div>
+          <button class="settings-action" onclick="document.getElementById('import-file').click()">読み込み</button>
+        </div>
+        <div class="settings-item">
+          <div class="settings-label">全データ削除</div>
+          <button class="settings-action" style="color:#e05" onclick="deleteAllData()">削除</button>
+        </div>
+      </div>
+      <input type="file" id="import-file" accept=".txt" onchange="importFile(event)">
+    </div>
+  </main>
+
+  <!-- ボトムナビ -->
+  <nav class="bottom-nav">
+    <button class="bottom-nav-btn active" id="nav-diary" onclick="showView('diary')">
+      📔<span>日記</span>
+    </button>
+    <button class="bottom-nav-btn" id="nav-calendar" onclick="showView('calendar')">
+      📅<span>カレンダー</span>
+    </button>
+    <button class="bottom-nav-btn" id="nav-settings" onclick="showView('settings')">
+      ⚙️<span>設定</span>
+    </button>
+  </nav>
+</div>
+
+<!-- PIN変更モーダル -->
+<div class="modal-overlay" id="change-pin-modal">
+  <div class="modal">
+    <h3>PINを変更</h3>
+    <input type="password" inputmode="numeric" maxlength="4" id="cp-current" placeholder="現在のPIN（4桁）">
+    <input type="password" inputmode="numeric" maxlength="4" id="cp-new" placeholder="新しいPIN（4桁）">
+    <input type="password" inputmode="numeric" maxlength="4" id="cp-confirm" placeholder="新しいPINを再入力">
+    <div class="modal-error" id="cp-error"></div>
+    <div class="modal-btns">
+      <button class="btn-cancel" onclick="closeModal('change-pin-modal')">キャンセル</button>
+      <button class="btn-ok" onclick="savePin()">保存</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ============================================================
+// ストレージ
+// ============================================================
+const STORAGE_KEY = 'jyunen_diary';
+const PIN_KEY = 'jyunen_pin';
+const DEFAULT_PIN = '0000';
+
+function loadDiary() {
+  try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}'); } catch { return {}; }
+}
+function saveDiary(data) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+}
+function getPin() {
+  try { return localStorage.getItem(PIN_KEY) || DEFAULT_PIN; } catch { return DEFAULT_PIN; }
+}
+function setPin(pin) {
+  try { localStorage.setItem(PIN_KEY, pin); } catch {}
+}
+
+// ============================================================
+// 日付ユーティリティ
+// ============================================================
+function toKey(y, m, d) {
+  return `${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+}
+function parseKey(key) {
+  const [m, d] = key.split('-').map(Number);
+  return { m, d };
+}
+const WEEKDAYS = ['日','月','火','水','木','金','土'];
+function formatDateBig(y, m, d) {
+  return `${y}年${m}月${d}日（${WEEKDAYS[new Date(y,m-1,d).getDay()]}）`;
+}
+
+// ============================================================
+// PINロック
+// ============================================================
+let pinInput = '';
+
+function pinPress(n) {
+  if (pinInput.length >= 4) return;
+  pinInput += n;
+  updatePinDisplay();
+  if (pinInput.length === 4) {
+    setTimeout(checkPin, 80);
+  }
+}
+function pinDel() {
+  pinInput = pinInput.slice(0, -1);
+  updatePinDisplay();
+  document.getElementById('pin-error').textContent = '';
+}
+function updatePinDisplay() {
+  for (let i = 0; i < 4; i++) {
+    document.getElementById('d'+i).classList.toggle('filled', i < pinInput.length);
+  }
+}
+function checkPin() {
+  if (pinInput === getPin()) {
+    document.getElementById('lock-screen').style.display = 'none';
+    document.getElementById('app').style.display = 'flex';
+    document.getElementById('app').style.flexDirection = 'column';
+    initApp();
+  } else {
+    document.getElementById('pin-error').textContent = 'PINが違います';
+    pinInput = '';
+    updatePinDisplay();
+  }
+}
+
+// ============================================================
+// アプリ初期化
+// ============================================================
+let currentDate = new Date();
+let calYear, calMonth;
+
+function initApp() {
+  currentDate = new Date();
+  calYear = currentDate.getFullYear();
+  calMonth = currentDate.getMonth() + 1;
+  renderDiaryView();
+  renderCalendar();
+}
+
+// ============================================================
+// 日記ビュー
+// ============================================================
+function renderDiaryView() {
+  const thisYear = new Date().getFullYear();
+  const m = currentDate.getMonth() + 1;
+  const d = currentDate.getDate();
+  const key = toKey(null, m, d);
+
+  document.getElementById('diary-date-big').textContent = formatDateBig(thisYear, m, d);
+
+  const data = loadDiary();
+  const html = [];
+
+  // 今年の入力欄
+  const todayEntry = (data[key] && data[key][thisYear]) ? data[key][thisYear].text || '' : '';
+  html.push(`<div class="today-card">
+    <div class="today-label">${thisYear}年（今年）</div>
+    <textarea id="today-textarea" placeholder="今日の日記を書く...">${escHtml(todayEntry)}</textarea>
+    <button class="save-btn" onclick="saveToday()">保存</button>
+  </div>`);
+
+  // 過去の日記（新しい年順）
+  if (data[key]) {
+    const years = Object.keys(data[key]).map(Number).filter(yr => yr !== thisYear).sort((a,b) => b-a);
+    for (const yr of years) {
+      const e = data[key][yr];
+      if (!e || !e.text) continue;
+      let meta = '';
+      if (e.weather) meta += e.weather + ' ';
+      if (e.location) meta += e.location;
+      html.push(`<div class="entry-card">
+        <div class="entry-year">${yr}年</div>
+        <div class="entry-text">${escHtml(e.text)}</div>
+        ${meta ? `<div class="entry-meta">${escHtml(meta.trim())}</div>` : ''}
+      </div>`);
+    }
+  }
+
+  document.getElementById('diary-content').innerHTML = html.join('');
+}
+
+function saveToday() {
+  const thisYear = new Date().getFullYear();
+  const m = currentDate.getMonth() + 1;
+  const d = currentDate.getDate();
+  const key = toKey(null, m, d);
+  const text = document.getElementById('today-textarea').value.trim();
+
+  const data = loadDiary();
+  if (!data[key]) data[key] = {};
+  if (!data[key][thisYear]) data[key][thisYear] = {};
+  data[key][thisYear].text = text;
+  saveDiary(data);
+  renderCalendar();
+
+  // 保存フィードバック
+  const btn = document.querySelector('.save-btn');
+  btn.textContent = '保存しました';
+  btn.style.background = '#8a9a8a';
+  setTimeout(() => { btn.textContent = '保存'; btn.style.background = ''; }, 1500);
+}
+
+function goToday() {
+  currentDate = new Date();
+  renderDiaryView();
+  calYear = currentDate.getFullYear();
+  calMonth = currentDate.getMonth() + 1;
+  renderCalendar();
+}
+
+function changeDay(delta) {
+  currentDate.setDate(currentDate.getDate() + delta);
+  renderDiaryView();
+}
+
+function showDiaryFor(y, m, d) {
+  currentDate = new Date(y, m-1, d);
+  showView('diary');
+  renderDiaryView();
+}
+
+// ============================================================
+// カレンダー
+// ============================================================
+function renderCalendar() {
+  document.getElementById('cal-title').textContent = `${calYear}年${calMonth}月`;
+  const data = loadDiary();
+  const today = new Date();
+  const ty = today.getFullYear(), tm = today.getMonth()+1, td = today.getDate();
+
+  const first = new Date(calYear, calMonth-1, 1).getDay();
+  const last = new Date(calYear, calMonth, 0).getDate();
+
+  let html = '';
+  for (let i = 0; i < first; i++) {
+    html += `<div class="cal-day empty"></div>`;
+  }
+  for (let d = 1; d <= last; d++) {
+    const key = toKey(calYear, calMonth, d);
+    const isFuture = new Date(calYear, calMonth-1, d) > today;
+    const hasEntry = !isFuture && data[key] && Object.values(data[key]).some(e => e && e.text);
+    const dow = new Date(calYear, calMonth-1, d).getDay();
+    const isToday = calYear===ty && calMonth===tm && d===td;
+    const cls = [
+      'cal-day',
+      isToday ? 'today' : '',
+      hasEntry ? 'has-entry' : '',
+      dow===0 ? 'sunday' : '',
+      dow===6 ? 'saturday' : ''
+    ].filter(Boolean).join(' ');
+    html += `<div class="${cls}" onclick="showDiaryFor(${calYear},${calMonth},${d})">
+      <span class="day-num">${d}</span>
+    </div>`;
+  }
+  document.getElementById('cal-days').innerHTML = html;
+}
+
+function calMove(delta) {
+  calMonth += delta;
+  if (calMonth > 12) { calMonth = 1; calYear++; }
+  if (calMonth < 1) { calMonth = 12; calYear--; }
+  renderCalendar();
+}
+
+// ============================================================
+// 検索
+// ============================================================
+function doSearch() {
+  const q = document.getElementById('search-input').value.trim();
+  const results = document.getElementById('search-results');
+  if (!q) { results.innerHTML = ''; return; }
+
+  const data = loadDiary();
+  const matches = [];
+
+  for (const key of Object.keys(data).sort().reverse()) {
+    const {m, d} = parseKey(key);
+    for (const [yr, e] of Object.entries(data[key])) {
+      if (!e || !e.text) continue;
+      const dateStr = `${yr}/${String(m).padStart(2,'0')}/${String(d).padStart(2,'0')}`;
+      if (e.text.includes(q) || dateStr.includes(q)) {
+        matches.push({ key, m, d, yr: Number(yr), text: e.text, dateStr });
+      }
+    }
+  }
+
+  // 年→月日の順でソート（新しい順）
+  matches.sort((a, b) => b.yr - a.yr || b.m - a.m || b.d - a.d);
+
+  if (matches.length === 0) {
+    results.innerHTML = `<div class="no-result">「${escHtml(q)}」に一致する日記はありません</div>`;
+    return;
+  }
+
+  results.innerHTML = matches.map(r => {
+    const snippet = highlight(r.text.slice(0, 80) + (r.text.length > 80 ? '...' : ''), q);
+    return `<div class="search-result" onclick="showDiaryFor(${r.yr},${r.m},${r.d})">
+      <div class="search-date">${r.yr}年 ${r.m}月${r.d}日</div>
+      <div class="search-snippet">${snippet}</div>
+    </div>`;
+  }).join('');
+}
+
+function highlight(text, q) {
+  return escHtml(text).replace(new RegExp(escReg(escHtml(q)), 'gi'), s => `<mark>${s}</mark>`);
+}
+function escReg(s) { return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
+
+// ============================================================
+// ビュー切り替え
+// ============================================================
+function showView(name) {
+  ['diary','calendar','search','settings'].forEach(v => {
+    document.getElementById(v+'-view').classList.toggle('active', v===name);
+  });
+  ['diary','calendar','settings'].forEach(v => {
+    const btn = document.getElementById('nav-'+v);
+    if (btn) btn.classList.toggle('active', v===name);
+  });
+  document.getElementById('search-icon-btn').style.display = name==='search' ? 'none' : '';
+  if (name === 'calendar') renderCalendar();
+  if (name === 'diary') renderDiaryView();
+}
+
+// ============================================================
+// PIN変更
+// ============================================================
+function openChangePinModal() {
+  document.getElementById('cp-current').value = '';
+  document.getElementById('cp-new').value = '';
+  document.getElementById('cp-confirm').value = '';
+  document.getElementById('cp-error').textContent = '';
+  document.getElementById('change-pin-modal').classList.add('open');
+}
+function savePin() {
+  const cur = document.getElementById('cp-current').value;
+  const nw = document.getElementById('cp-new').value;
+  const conf = document.getElementById('cp-confirm').value;
+  const err = document.getElementById('cp-error');
+
+  if (cur !== getPin()) { err.textContent = '現在のPINが違います'; return; }
+  if (!/^\d{4}$/.test(nw)) { err.textContent = '新しいPINは4桁の数字で入力してください'; return; }
+  if (nw !== conf) { err.textContent = '新しいPINが一致しません'; return; }
+
+  setPin(nw);
+  closeModal('change-pin-modal');
+}
+function closeModal(id) {
+  document.getElementById(id).classList.remove('open');
+}
+
+// ============================================================
+// エクスポート
+// ============================================================
+function exportData() {
+  const data = loadDiary();
+  const lines = [];
+  for (const key of Object.keys(data).sort()) {
+    const {y, m, d} = parseKey(key);
+    for (const [yr, e] of Object.entries(data[key])) {
+      if (!e || !e.text) continue;
+      lines.push('=====');
+      lines.push(`${yr}/${String(m).padStart(2,'0')}/${String(d).padStart(2,'0')}`);
+      if (e.weather || e.location) lines.push([e.weather,e.location].filter(Boolean).join(' '));
+      lines.push(e.text);
+    }
+  }
+  const blob = new Blob([lines.join('\n')], {type:'text/plain;charset=utf-8'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `diary_export_${new Date().toISOString().slice(0,10)}.txt`;
+  a.click();
+}
+
+// ============================================================
+// インポート
+// ============================================================
+function importFile(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    const text = e.target.result;
+    const count = parseImport(text);
+    alert(`${count}件のデータをインポートしました`);
+    renderDiaryView();
+    renderCalendar();
+  };
+  reader.readAsText(file, 'UTF-8');
+  event.target.value = '';
+}
+
+function importTestData() {
+  const testText = `================================
+2025/04/17  令和7年
+去年の今日のテスト日記です。
+================================
+2024/04/17  令和6年
+2年前の今日のテスト日記です。`;
+  console.log('[ImportTest] テストデータ開始');
+  const count = parseImport(testText);
+  console.log('[ImportTest] インポート完了:', count, '件');
+  alert(`テストデータ ${count} 件をインポートしました`);
+  renderDiaryView();
+  renderCalendar();
+}
+
+function parseImport(text) {
+  console.log('[parseImport] 開始 テキスト長:', text.length);
+  const data = loadDiary();
+  const lines = text.split(/\r?\n/);
+  console.log('[parseImport] 行数:', lines.length);
+  lines.forEach((l, idx) => console.log(`  line[${idx}]: ${JSON.stringify(l)}`));
+
+  let count = 0;
+  let i = 0;
+
+  const isSep = line => /^={3,}/.test(line.trim());
+
+  while (i < lines.length) {
+    if (isSep(lines[i])) {
+      console.log('[parseImport] 区切り行検出 i=', i, lines[i]);
+      i++;
+      if (i >= lines.length) break;
+
+      const dateLine = lines[i].trim();
+      console.log('[parseImport] 日付行候補:', JSON.stringify(dateLine));
+      const dateMatch = dateLine.match(/(\d{4})\/(\d{2})\/(\d{2})/);
+      if (!dateMatch) {
+        console.log('[parseImport] 日付マッチ失敗 スキップ');
+        i++; continue;
+      }
+      const yr = Number(dateMatch[1]);
+      const m = Number(dateMatch[2]);
+      const d = Number(dateMatch[3]);
+      console.log('[parseImport] 日付解析:', yr, m, d);
+      i++;
+
+      // 天気・位置情報（オプション）
+      let weather = '', location = '';
+      if (i < lines.length && lines[i].trim() && !/^\d{4}\//.test(lines[i]) && !isSep(lines[i])) {
+        const possibleMeta = lines[i].trim();
+        const weatherPatterns = /[晴曇雨雪霧]/;
+        if (weatherPatterns.test(possibleMeta) && possibleMeta.length < 30) {
+          weather = possibleMeta;
+          i++;
+        }
+      }
+
+      // 本文
+      const bodyLines = [];
+      while (i < lines.length && !isSep(lines[i])) {
+        bodyLines.push(lines[i]);
+        i++;
+      }
+      const bodyText = bodyLines.join('\n').trim();
+      console.log('[parseImport] 本文:', JSON.stringify(bodyText));
+      if (!bodyText) { console.log('[parseImport] 本文なし スキップ'); continue; }
+
+      const key = toKey(yr, m, d);
+      if (!data[key]) data[key] = {};
+      if (!data[key][yr]) data[key][yr] = {};
+      data[key][yr].text = bodyText;
+      if (weather) data[key][yr].weather = weather;
+      if (location) data[key][yr].location = location;
+      count++;
+      console.log('[parseImport] 保存:', key, yr, '件数:', count);
+    } else {
+      i++;
+    }
+  }
+
+  console.log('[parseImport] saveDiary 呼び出し');
+  try {
+    saveDiary(data);
+    console.log('[parseImport] saveDiary 成功');
+  } catch (e) {
+    console.error('[parseImport] saveDiary 失敗:', e);
+  }
+  console.log('[parseImport] 完了 count=', count);
+  return count;
+}
+
+// ============================================================
+// 全削除
+// ============================================================
+function deleteAllData() {
+  if (!confirm('全データを削除します。この操作は取り消せません。よろしいですか？')) return;
+  if (!confirm('本当に削除しますか？')) return;
+  localStorage.removeItem(STORAGE_KEY);
+  renderDiaryView();
+  renderCalendar();
+  alert('削除しました');
+}
+
+// ============================================================
+// ユーティリティ
+// ============================================================
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+</script>
+</body>
+</html>
