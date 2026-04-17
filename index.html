@@ -30,11 +30,6 @@ header { background: #fff; border-bottom: 1px solid #e8e0d8; padding: 12px 16px;
 .icon-btn { width: 44px; height: 44px; border: none; background: transparent; cursor: pointer; border-radius: 10px; font-size: 20px; color: #5a4a3a; display: flex; align-items: center; justify-content: center; }
 .icon-btn:active { background: #f0ece6; }
 
-/* タブ */
-.tab-bar { display: flex; background: #fff; border-bottom: 1px solid #e8e0d8; }
-.tab-btn { flex: 1; padding: 12px; border: none; background: transparent; font-size: 14px; color: #888; cursor: pointer; border-bottom: 3px solid transparent; transition: all 0.2s; }
-.tab-btn.active { color: #5a4a3a; border-bottom-color: #c8b89a; font-weight: 600; }
-
 main { flex: 1; padding: 16px; max-width: 600px; width: 100%; margin: 0 auto; }
 
 /* 日記画面 */
@@ -43,7 +38,6 @@ main { flex: 1; padding: 16px; max-width: 600px; width: 100%; margin: 0 auto; }
 
 .date-header { text-align: center; margin-bottom: 20px; }
 .date-big { font-size: 28px; font-weight: 700; color: #5a4a3a; }
-.date-sub { font-size: 14px; color: #888; margin-top: 4px; }
 
 .entry-card { background: #fff; border-radius: 14px; padding: 16px; margin-bottom: 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
 .entry-year { font-size: 13px; font-weight: 600; color: #c8b89a; margin-bottom: 8px; }
@@ -96,16 +90,23 @@ mark { background: #ffe88a; border-radius: 3px; }
 .settings-item { padding: 16px; border-bottom: 1px solid #f0ece6; display: flex; align-items: center; justify-content: space-between; }
 .settings-item:last-child { border-bottom: none; }
 .settings-label { font-size: 16px; color: #333; }
-.settings-action { padding: 8px 16px; background: #f0ece6; border: none; border-radius: 8px; font-size: 14px; color: #5a4a3a; cursor: pointer; }
+.settings-sublabel { font-size: 12px; color: #aaa; margin-top: 3px; }
+.settings-action { padding: 8px 16px; background: #f0ece6; border: none; border-radius: 8px; font-size: 14px; color: #5a4a3a; cursor: pointer; flex-shrink: 0; }
 .settings-action:active { background: #e8ddd0; }
 .settings-section-title { font-size: 13px; font-weight: 600; color: #aaa; padding: 12px 16px 4px; }
+
+/* Google Drive 同期アイコン */
+#gdrive-status-btn { font-size: 16px; }
+#gdrive-status-btn.syncing { animation: spin 1s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
 
 /* モーダル */
 .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 200; align-items: flex-end; }
 .modal-overlay.open { display: flex; }
 .modal { background: #fff; border-radius: 20px 20px 0 0; padding: 24px 20px; width: 100%; max-width: 600px; margin: 0 auto; }
-.modal h3 { font-size: 18px; margin-bottom: 16px; color: #333; }
-.modal input { width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 10px; font-size: 16px; margin-bottom: 12px; }
+.modal h3 { font-size: 18px; margin-bottom: 8px; color: #333; }
+.modal-desc { font-size: 13px; color: #888; margin-bottom: 16px; line-height: 1.6; }
+.modal input { width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 10px; font-size: 14px; margin-bottom: 12px; font-family: monospace; }
 .modal input:focus { outline: none; border-color: #c8b89a; }
 .modal-btns { display: flex; gap: 10px; }
 .modal-btns button { flex: 1; padding: 14px; border: none; border-radius: 10px; font-size: 16px; cursor: pointer; font-weight: 600; }
@@ -113,8 +114,6 @@ mark { background: #ffe88a; border-radius: 3px; }
 .btn-ok { background: #c8b89a; color: #fff; }
 .modal-error { color: #e05; font-size: 13px; margin-bottom: 8px; min-height: 18px; }
 
-.import-area { border: 2px dashed #ddd; border-radius: 10px; padding: 30px; text-align: center; color: #aaa; font-size: 15px; margin-bottom: 12px; cursor: pointer; }
-.import-area:active { background: #f8f4f0; }
 #import-file { display: none; }
 
 .bottom-nav { display: flex; background: #fff; border-top: 1px solid #e8e0d8; position: sticky; bottom: 0; }
@@ -122,6 +121,8 @@ mark { background: #ffe88a; border-radius: 3px; }
 .bottom-nav-btn span { font-size: 10px; }
 .bottom-nav-btn.active { color: #c8b89a; }
 </style>
+<!-- Google Identity Services -->
+<script src="https://accounts.google.com/gsi/client" async onload="onGisLoad()"></script>
 </head>
 <body>
 
@@ -156,8 +157,9 @@ mark { background: #ffe88a; border-radius: 3px; }
 <div id="app">
   <header>
     <div class="header-row">
-      <div class="header-title" id="header-title">Echoes</div>
+      <div class="header-title">Echoes</div>
       <div class="header-actions">
+        <button class="icon-btn" id="gdrive-status-btn" onclick="showView('settings')" title="Google Drive同期状態" style="display:none"></button>
         <button class="icon-btn" id="search-icon-btn" onclick="showView('search')" title="検索">🔍</button>
         <button class="icon-btn" onclick="showView('settings')" title="設定">⚙️</button>
       </div>
@@ -169,12 +171,11 @@ mark { background: #ffe88a; border-radius: 3px; }
     <div id="diary-view" class="active">
       <div class="date-header">
         <div class="date-big" id="diary-date-big"></div>
-        <div class="date-sub" id="diary-date-sub"></div>
       </div>
       <div class="nav-row">
-        <button class="nav-btn" id="prev-day-btn" onclick="changeDay(-1)">◀ 前日</button>
+        <button class="nav-btn" onclick="changeDay(-1)">◀ 前日</button>
         <button class="nav-btn" onclick="goToday()">今日</button>
-        <button class="nav-btn" id="next-day-btn" onclick="changeDay(1)">翌日 ▶</button>
+        <button class="nav-btn" onclick="changeDay(1)">翌日 ▶</button>
       </div>
       <div id="diary-content"></div>
     </div>
@@ -207,6 +208,32 @@ mark { background: #ffe88a; border-radius: 3px; }
 
     <!-- 設定ビュー -->
     <div id="settings-view">
+      <div class="settings-section-title">Google Drive 連携</div>
+      <div class="settings-section">
+        <div class="settings-item">
+          <div>
+            <div class="settings-label">Client ID</div>
+            <div class="settings-sublabel" id="gdrive-clientid-display">未設定</div>
+          </div>
+          <button class="settings-action" onclick="openClientIdModal()">設定</button>
+        </div>
+        <div class="settings-item">
+          <div>
+            <div class="settings-label" id="gdrive-auth-label">未ログイン</div>
+            <div class="settings-sublabel" id="gdrive-sync-status"></div>
+          </div>
+          <button class="settings-action" id="gdrive-auth-btn" onclick="toggleGDriveAuth()">ログイン</button>
+        </div>
+        <div class="settings-item" id="gdrive-sync-row" style="display:none">
+          <div class="settings-label">今すぐ同期</div>
+          <button class="settings-action" onclick="gDriveSync()">同期</button>
+        </div>
+        <div class="settings-item" id="gdrive-migrate-row" style="display:none">
+          <div class="settings-label">ローカルデータをDriveに移行</div>
+          <button class="settings-action" onclick="migrateToGDrive()">移行</button>
+        </div>
+      </div>
+
       <div class="settings-section-title">セキュリティ</div>
       <div class="settings-section">
         <div class="settings-item">
@@ -214,6 +241,7 @@ mark { background: #ffe88a; border-radius: 3px; }
           <button class="settings-action" onclick="openChangePinModal()">変更</button>
         </div>
       </div>
+
       <div class="settings-section-title">データ</div>
       <div class="settings-section">
         <div class="settings-item">
@@ -262,6 +290,23 @@ mark { background: #ffe88a; border-radius: 3px; }
   </div>
 </div>
 
+<!-- Client ID モーダル -->
+<div class="modal-overlay" id="clientid-modal">
+  <div class="modal">
+    <h3>Google Client ID</h3>
+    <p class="modal-desc">
+      Google Cloud Console で作成した OAuth 2.0 クライアントID（ウェブアプリ）を貼り付けてください。<br>
+      取得方法: console.cloud.google.com → APIとサービス → 認証情報 → OAuth 2.0 クライアントID
+    </p>
+    <input type="text" id="clientid-input" placeholder="xxxxxxxx.apps.googleusercontent.com">
+    <div class="modal-error" id="clientid-error"></div>
+    <div class="modal-btns">
+      <button class="btn-cancel" onclick="closeModal('clientid-modal')">キャンセル</button>
+      <button class="btn-ok" onclick="saveClientId()">保存</button>
+    </div>
+  </div>
+</div>
+
 <script>
 // ============================================================
 // ストレージ
@@ -269,18 +314,26 @@ mark { background: #ffe88a; border-radius: 3px; }
 const STORAGE_KEY = 'jyunen_diary';
 const PIN_KEY = 'jyunen_pin';
 const DEFAULT_PIN = '0000';
+const GDRIVE_CLIENT_ID_KEY = 'echoes_gdrive_client_id';
 
 function loadDiary() {
   try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}'); } catch { return {}; }
 }
 function saveDiary(data) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); } catch {}
+  scheduleDriveSync();
 }
 function getPin() {
   try { return localStorage.getItem(PIN_KEY) || DEFAULT_PIN; } catch { return DEFAULT_PIN; }
 }
 function setPin(pin) {
   try { localStorage.setItem(PIN_KEY, pin); } catch {}
+}
+function getClientId() {
+  try { return localStorage.getItem(GDRIVE_CLIENT_ID_KEY) || ''; } catch { return ''; }
+}
+function setClientId(id) {
+  try { localStorage.setItem(GDRIVE_CLIENT_ID_KEY, id.trim()); } catch {}
 }
 
 // ============================================================
@@ -307,9 +360,7 @@ function pinPress(n) {
   if (pinInput.length >= 4) return;
   pinInput += n;
   updatePinDisplay();
-  if (pinInput.length === 4) {
-    setTimeout(checkPin, 80);
-  }
+  if (pinInput.length === 4) setTimeout(checkPin, 80);
 }
 function pinDel() {
   pinInput = pinInput.slice(0, -1);
@@ -344,8 +395,11 @@ function initApp() {
   currentDate = new Date();
   calYear = currentDate.getFullYear();
   calMonth = currentDate.getMonth() + 1;
+  updateClientIdDisplay();
   renderDiaryView();
   renderCalendar();
+  // Client IDが設定済みならGIS準備完了後に自動同期
+  if (getClientId() && gisReady) initTokenClient(getClientId());
 }
 
 // ============================================================
@@ -362,7 +416,6 @@ function renderDiaryView() {
   const data = loadDiary();
   const html = [];
 
-  // 今年の入力欄
   const todayEntry = (data[key] && data[key][thisYear]) ? data[key][thisYear].text || '' : '';
   html.push(`<div class="today-card">
     <div class="today-label">${thisYear}年（今年）</div>
@@ -370,7 +423,6 @@ function renderDiaryView() {
     <button class="save-btn" onclick="saveToday()">保存</button>
   </div>`);
 
-  // 過去の日記（新しい年順）
   if (data[key]) {
     const years = Object.keys(data[key]).map(Number).filter(yr => yr !== thisYear).sort((a,b) => b-a);
     for (const yr of years) {
@@ -401,10 +453,10 @@ function saveToday() {
   if (!data[key]) data[key] = {};
   if (!data[key][thisYear]) data[key][thisYear] = {};
   data[key][thisYear].text = text;
+  data[key][thisYear].updatedAt = Date.now();
   saveDiary(data);
   renderCalendar();
 
-  // 保存フィードバック
   const btn = document.querySelector('.save-btn');
   btn.textContent = '保存しました';
   btn.style.background = '#8a9a8a';
@@ -443,25 +495,15 @@ function renderCalendar() {
   const last = new Date(calYear, calMonth, 0).getDate();
 
   let html = '';
-  for (let i = 0; i < first; i++) {
-    html += `<div class="cal-day empty"></div>`;
-  }
+  for (let i = 0; i < first; i++) html += `<div class="cal-day empty"></div>`;
   for (let d = 1; d <= last; d++) {
     const key = toKey(calYear, calMonth, d);
     const isFuture = new Date(calYear, calMonth-1, d) > today;
     const hasEntry = !isFuture && data[key] && Object.values(data[key]).some(e => e && e.text);
     const dow = new Date(calYear, calMonth-1, d).getDay();
     const isToday = calYear===ty && calMonth===tm && d===td;
-    const cls = [
-      'cal-day',
-      isToday ? 'today' : '',
-      hasEntry ? 'has-entry' : '',
-      dow===0 ? 'sunday' : '',
-      dow===6 ? 'saturday' : ''
-    ].filter(Boolean).join(' ');
-    html += `<div class="${cls}" onclick="showDiaryFor(${calYear},${calMonth},${d})">
-      <span class="day-num">${d}</span>
-    </div>`;
+    const cls = ['cal-day', isToday?'today':'', hasEntry?'has-entry':'', dow===0?'sunday':'', dow===6?'saturday':''].filter(Boolean).join(' ');
+    html += `<div class="${cls}" onclick="showDiaryFor(${calYear},${calMonth},${d})"><span class="day-num">${d}</span></div>`;
   }
   document.getElementById('cal-days').innerHTML = html;
 }
@@ -484,18 +526,17 @@ function doSearch() {
   const data = loadDiary();
   const matches = [];
 
-  for (const key of Object.keys(data).sort().reverse()) {
+  for (const key of Object.keys(data)) {
     const {m, d} = parseKey(key);
     for (const [yr, e] of Object.entries(data[key])) {
       if (!e || !e.text) continue;
       const dateStr = `${yr}/${String(m).padStart(2,'0')}/${String(d).padStart(2,'0')}`;
       if (e.text.includes(q) || dateStr.includes(q)) {
-        matches.push({ key, m, d, yr: Number(yr), text: e.text, dateStr });
+        matches.push({ m, d, yr: Number(yr), text: e.text });
       }
     }
   }
 
-  // 年→月日の順でソート（新しい順）
   matches.sort((a, b) => b.yr - a.yr || b.m - a.m || b.d - a.d);
 
   if (matches.length === 0) {
@@ -567,7 +608,7 @@ function exportData() {
   const data = loadDiary();
   const lines = [];
   for (const key of Object.keys(data).sort()) {
-    const {y, m, d} = parseKey(key);
+    const {m, d} = parseKey(key);
     for (const [yr, e] of Object.entries(data[key])) {
       if (!e || !e.text) continue;
       lines.push('=====');
@@ -591,8 +632,7 @@ function importFile(event) {
   if (!file) return;
   const reader = new FileReader();
   reader.onload = e => {
-    const text = e.target.result;
-    const count = parseImport(text);
+    const count = parseImport(e.target.result);
     alert(`${count}件のデータをインポートしました`);
     renderDiaryView();
     renderCalendar();
@@ -601,94 +641,52 @@ function importFile(event) {
   event.target.value = '';
 }
 
-function importTestData() {
-  const testText = `================================
-2025/04/17  令和7年
-去年の今日のテスト日記です。
-================================
-2024/04/17  令和6年
-2年前の今日のテスト日記です。`;
-  console.log('[ImportTest] テストデータ開始');
-  const count = parseImport(testText);
-  console.log('[ImportTest] インポート完了:', count, '件');
-  alert(`テストデータ ${count} 件をインポートしました`);
-  renderDiaryView();
-  renderCalendar();
-}
-
 function parseImport(text) {
-  console.log('[parseImport] 開始 テキスト長:', text.length);
   const data = loadDiary();
   const lines = text.split(/\r?\n/);
-  console.log('[parseImport] 行数:', lines.length);
-  lines.forEach((l, idx) => console.log(`  line[${idx}]: ${JSON.stringify(l)}`));
-
   let count = 0;
   let i = 0;
-
+  const now = Date.now();
   const isSep = line => /^={3,}/.test(line.trim());
 
   while (i < lines.length) {
     if (isSep(lines[i])) {
-      console.log('[parseImport] 区切り行検出 i=', i, lines[i]);
       i++;
       if (i >= lines.length) break;
 
       const dateLine = lines[i].trim();
-      console.log('[parseImport] 日付行候補:', JSON.stringify(dateLine));
       const dateMatch = dateLine.match(/(\d{4})\/(\d{2})\/(\d{2})/);
-      if (!dateMatch) {
-        console.log('[parseImport] 日付マッチ失敗 スキップ');
-        i++; continue;
-      }
+      if (!dateMatch) { i++; continue; }
       const yr = Number(dateMatch[1]);
       const m = Number(dateMatch[2]);
       const d = Number(dateMatch[3]);
-      console.log('[parseImport] 日付解析:', yr, m, d);
       i++;
 
-      // 天気・位置情報（オプション）
       let weather = '', location = '';
       if (i < lines.length && lines[i].trim() && !/^\d{4}\//.test(lines[i]) && !isSep(lines[i])) {
-        const possibleMeta = lines[i].trim();
-        const weatherPatterns = /[晴曇雨雪霧]/;
-        if (weatherPatterns.test(possibleMeta) && possibleMeta.length < 30) {
-          weather = possibleMeta;
-          i++;
-        }
+        const meta = lines[i].trim();
+        if (/[晴曇雨雪霧]/.test(meta) && meta.length < 30) { weather = meta; i++; }
       }
 
-      // 本文
       const bodyLines = [];
-      while (i < lines.length && !isSep(lines[i])) {
-        bodyLines.push(lines[i]);
-        i++;
-      }
+      while (i < lines.length && !isSep(lines[i])) { bodyLines.push(lines[i]); i++; }
       const bodyText = bodyLines.join('\n').trim();
-      console.log('[parseImport] 本文:', JSON.stringify(bodyText));
-      if (!bodyText) { console.log('[parseImport] 本文なし スキップ'); continue; }
+      if (!bodyText) continue;
 
       const key = toKey(yr, m, d);
       if (!data[key]) data[key] = {};
       if (!data[key][yr]) data[key][yr] = {};
       data[key][yr].text = bodyText;
+      data[key][yr].updatedAt = now;
       if (weather) data[key][yr].weather = weather;
       if (location) data[key][yr].location = location;
       count++;
-      console.log('[parseImport] 保存:', key, yr, '件数:', count);
     } else {
       i++;
     }
   }
 
-  console.log('[parseImport] saveDiary 呼び出し');
-  try {
-    saveDiary(data);
-    console.log('[parseImport] saveDiary 成功');
-  } catch (e) {
-    console.error('[parseImport] saveDiary 失敗:', e);
-  }
-  console.log('[parseImport] 完了 count=', count);
+  saveDiary(data);
   return count;
 }
 
@@ -698,10 +696,236 @@ function parseImport(text) {
 function deleteAllData() {
   if (!confirm('全データを削除します。この操作は取り消せません。よろしいですか？')) return;
   if (!confirm('本当に削除しますか？')) return;
-  localStorage.removeItem(STORAGE_KEY);
+  try { localStorage.removeItem(STORAGE_KEY); } catch {}
   renderDiaryView();
   renderCalendar();
   alert('削除しました');
+}
+
+// ============================================================
+// Google Drive 連携
+// ============================================================
+const GDRIVE_FILE_NAME = 'echoes-data.json';
+const GDRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.file';
+
+let gdriveToken = null;
+let gdriveFileId = null;
+let syncTimer = null;
+let gisReady = false;
+let tokenClient = null;
+
+function onGisLoad() {
+  gisReady = true;
+  const clientId = getClientId();
+  if (clientId) initTokenClient(clientId);
+}
+
+function initTokenClient(clientId) {
+  if (!window.google || !gisReady || !clientId) return;
+  tokenClient = google.accounts.oauth2.initTokenClient({
+    client_id: clientId,
+    scope: GDRIVE_SCOPE,
+    callback: async (resp) => {
+      if (resp.error) {
+        setGDriveStatus('ログインエラー');
+        return;
+      }
+      gdriveToken = resp.access_token;
+      updateGDriveUI(true);
+      await gDriveSync();
+    }
+  });
+}
+
+function toggleGDriveAuth() {
+  if (gdriveToken) {
+    if (window.google && gisReady) google.accounts.oauth2.revoke(gdriveToken, () => {});
+    gdriveToken = null;
+    gdriveFileId = null;
+    updateGDriveUI(false);
+  } else {
+    const clientId = getClientId();
+    if (!clientId) { alert('先にClient IDを設定してください'); openClientIdModal(); return; }
+    if (!gisReady || !tokenClient) { alert('Google認証ライブラリの読み込み中です。しばらく待ってから再試行してください。'); return; }
+    tokenClient.requestAccessToken({ prompt: '' });
+  }
+}
+
+function updateGDriveUI(loggedIn) {
+  const authLabel = document.getElementById('gdrive-auth-label');
+  const authBtn = document.getElementById('gdrive-auth-btn');
+  const syncRow = document.getElementById('gdrive-sync-row');
+  const migrateRow = document.getElementById('gdrive-migrate-row');
+  const statusBtn = document.getElementById('gdrive-status-btn');
+  if (!authLabel) return;
+
+  if (loggedIn) {
+    authLabel.textContent = 'ログイン中';
+    authBtn.textContent = 'ログアウト';
+    syncRow.style.display = '';
+    migrateRow.style.display = '';
+    statusBtn.style.display = '';
+    statusBtn.textContent = '☁️';
+  } else {
+    authLabel.textContent = '未ログイン';
+    authBtn.textContent = 'ログイン';
+    syncRow.style.display = 'none';
+    migrateRow.style.display = 'none';
+    statusBtn.style.display = 'none';
+    setGDriveStatus('');
+  }
+}
+
+function setGDriveStatus(text) {
+  const el = document.getElementById('gdrive-sync-status');
+  if (el) el.textContent = text;
+}
+
+function setSyncIcon(state) {
+  const btn = document.getElementById('gdrive-status-btn');
+  if (!btn || !gdriveToken) return;
+  btn.classList.toggle('syncing', state === 'syncing');
+  btn.textContent = state === 'syncing' ? '🔄' : state === 'error' ? '⚠️' : '☁️';
+}
+
+// Drive API ヘルパー
+async function driveRequest(method, url, headers = {}, body = null) {
+  const res = await fetch(url, {
+    method,
+    headers: { 'Authorization': 'Bearer ' + gdriveToken, ...headers },
+    body
+  });
+  if (res.status === 401) {
+    gdriveToken = null;
+    updateGDriveUI(false);
+    setGDriveStatus('セッション切れ。再ログインしてください');
+    throw new Error('unauthorized');
+  }
+  return res;
+}
+
+async function findDriveFile() {
+  const q = encodeURIComponent(`name='${GDRIVE_FILE_NAME}' and trashed=false`);
+  const res = await driveRequest('GET', `https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id)&spaces=drive`);
+  const json = await res.json();
+  return (json.files && json.files.length > 0) ? json.files[0].id : null;
+}
+
+async function readDriveFile(fileId) {
+  const res = await driveRequest('GET', `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`);
+  return res.json();
+}
+
+async function writeDriveFile(fileId, content) {
+  const boundary = 'echoes_mp_' + Date.now();
+  const metaJson = JSON.stringify(fileId ? {} : { name: GDRIVE_FILE_NAME, mimeType: 'application/json' });
+  const dataJson = JSON.stringify(content);
+  const multipart = `--${boundary}\r\nContent-Type: application/json\r\n\r\n${metaJson}\r\n--${boundary}\r\nContent-Type: application/json\r\n\r\n${dataJson}\r\n--${boundary}--`;
+
+  const url = fileId
+    ? `https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=multipart`
+    : `https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart`;
+
+  const res = await driveRequest(
+    fileId ? 'PATCH' : 'POST',
+    url,
+    { 'Content-Type': `multipart/related; boundary=${boundary}` },
+    multipart
+  );
+  const json = await res.json();
+  return json.id || fileId;
+}
+
+// データのマージ（updatedAt の新しい方を優先）
+function mergeData(local, remote) {
+  const merged = JSON.parse(JSON.stringify(remote));
+  for (const key of Object.keys(local)) {
+    if (!merged[key]) {
+      merged[key] = local[key];
+    } else {
+      for (const yr of Object.keys(local[key])) {
+        if (!merged[key][yr]) {
+          merged[key][yr] = local[key][yr];
+        } else {
+          if ((local[key][yr].updatedAt || 0) > (merged[key][yr].updatedAt || 0)) {
+            merged[key][yr] = local[key][yr];
+          }
+        }
+      }
+    }
+  }
+  return merged;
+}
+
+async function gDriveSync() {
+  if (!gdriveToken) return;
+  clearTimeout(syncTimer);
+  setSyncIcon('syncing');
+  setGDriveStatus('同期中...');
+
+  try {
+    if (!gdriveFileId) gdriveFileId = await findDriveFile();
+
+    const local = loadDiary();
+    let merged = local;
+
+    if (gdriveFileId) {
+      const remote = await readDriveFile(gdriveFileId);
+      // Drive側のペイロードは { version, updatedAt, data } または生データ
+      const remoteData = remote.data || remote;
+      merged = mergeData(local, remoteData);
+    }
+
+    const payload = { version: 1, updatedAt: new Date().toISOString(), data: merged };
+    gdriveFileId = await writeDriveFile(gdriveFileId, payload);
+
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(merged)); } catch {}
+
+    const now = new Date().toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
+    setGDriveStatus(`最終同期 ${now}`);
+    setSyncIcon('ok');
+    renderDiaryView();
+    renderCalendar();
+  } catch (e) {
+    if (e.message !== 'unauthorized') {
+      setGDriveStatus('同期失敗');
+      setSyncIcon('error');
+    }
+  }
+}
+
+function scheduleDriveSync() {
+  if (!gdriveToken) return;
+  clearTimeout(syncTimer);
+  syncTimer = setTimeout(gDriveSync, 3000);
+}
+
+async function migrateToGDrive() {
+  if (!gdriveToken) { alert('先にGoogleログインしてください'); return; }
+  if (!confirm('ローカルのデータをGoogleドライブにアップロードします。既存のドライブデータとマージされます。よろしいですか？')) return;
+  await gDriveSync();
+  alert('移行が完了しました');
+}
+
+// Client ID モーダル
+function openClientIdModal() {
+  document.getElementById('clientid-input').value = getClientId();
+  document.getElementById('clientid-error').textContent = '';
+  document.getElementById('clientid-modal').classList.add('open');
+}
+function saveClientId() {
+  const val = document.getElementById('clientid-input').value.trim();
+  if (!val) { document.getElementById('clientid-error').textContent = 'Client IDを入力してください'; return; }
+  setClientId(val);
+  updateClientIdDisplay();
+  initTokenClient(val);
+  closeModal('clientid-modal');
+}
+function updateClientIdDisplay() {
+  const id = getClientId();
+  const el = document.getElementById('gdrive-clientid-display');
+  if (!el) return;
+  el.textContent = id ? id.slice(0, 24) + '...' : '未設定';
 }
 
 // ============================================================
