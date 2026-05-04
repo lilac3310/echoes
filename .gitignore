@@ -1,0 +1,8 @@
+自分用メモ.txt
+*.pickle
+client_secret.json
+token.pickle
+.env
+.env*
+node_modules/
+.DS_Store
