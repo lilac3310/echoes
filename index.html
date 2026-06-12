@@ -2,7 +2,11 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#f8f6f2">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
 <title>Echoes</title>
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -693,13 +697,35 @@ function parseImport(text) {
 // ============================================================
 // 全削除
 // ============================================================
-function deleteAllData() {
+async function deleteAllData() {
   if (!confirm('全データを削除します。この操作は取り消せません。よろしいですか？')) return;
   if (!confirm('本当に削除しますか？')) return;
+  clearTimeout(syncTimer);
   try { localStorage.removeItem(STORAGE_KEY); } catch {}
+
+  if (gdriveToken) {
+    // 削除中にセッションが切れた場合、自動再ログイン→同期でデータが復活しないよう抑止する
+    reauthing = true;
+    try {
+      if (!gdriveFileId) gdriveFileId = await findDriveFile();
+      if (gdriveFileId) {
+        await driveRequest('DELETE', `https://www.googleapis.com/drive/v3/files/${gdriveFileId}`);
+        gdriveFileId = null;
+      }
+      alert('この端末とGoogleドライブの両方のデータを削除しました');
+    } catch {
+      alert('この端末のデータは削除しましたが、Googleドライブ側の削除に失敗しました。設定からログインし直して、もう一度実行してください');
+    } finally {
+      reauthing = false;
+    }
+  } else if (getClientId()) {
+    alert('この端末のデータを削除しました。\nGoogleドライブにログインしていないため、ドライブ上のデータは残っています。すべて削除するにはログインしてから再度実行してください');
+  } else {
+    alert('削除しました');
+  }
+
   renderDiaryView();
   renderCalendar();
-  alert('削除しました');
 }
 
 // ============================================================
@@ -713,6 +739,7 @@ let gdriveFileId = null;
 let syncTimer = null;
 let gisReady = false;
 let tokenClient = null;
+let reauthing = false; // トークン失効時の静かな再取得が進行中か
 
 function onGisLoad() {
   gisReady = true;
@@ -727,12 +754,20 @@ function initTokenClient(clientId) {
     scope: GDRIVE_SCOPE,
     callback: async (resp) => {
       if (resp.error) {
+        reauthing = false;
+        updateGDriveUI(false);
         setGDriveStatus('ログインエラー');
         return;
       }
+      reauthing = false;
       gdriveToken = resp.access_token;
       updateGDriveUI(true);
       await gDriveSync();
+    },
+    error_callback: () => {
+      reauthing = false;
+      updateGDriveUI(false);
+      setGDriveStatus('セッション切れ。再ログインしてください');
     }
   });
 }
@@ -797,8 +832,16 @@ async function driveRequest(method, url, headers = {}, body = null) {
   });
   if (res.status === 401) {
     gdriveToken = null;
-    updateGDriveUI(false);
-    setGDriveStatus('セッション切れ。再ログインしてください');
+    if (tokenClient && !reauthing) {
+      // まず画面を遷移させず静かにトークンを取り直す（成功すればcallbackが同期を再開する）
+      reauthing = true;
+      setGDriveStatus('再接続中...');
+      tokenClient.requestAccessToken({ prompt: '' });
+    } else {
+      reauthing = false;
+      updateGDriveUI(false);
+      setGDriveStatus('セッション切れ。再ログインしてください');
+    }
     throw new Error('unauthorized');
   }
   return res;
@@ -933,6 +976,13 @@ function updateClientIdDisplay() {
 // ============================================================
 function escHtml(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ============================================================
+// PWA（ホーム画面アプリ・オフライン対応）
+// ============================================================
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('sw.js');
 }
 </script>
 </body>
