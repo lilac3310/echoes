@@ -1,4 +1,4 @@
-自分用メモ.txt
+*.txt
 *.pickle
 client_secret.json
 token.pickle
@@ -6,3 +6,4 @@ token.pickle
 .env*
 node_modules/
 .DS_Store
+.claude/
