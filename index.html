@@ -382,13 +382,63 @@ function checkPin() {
     document.getElementById('lock-screen').style.display = 'none';
     document.getElementById('app').style.display = 'flex';
     document.getElementById('app').style.flexDirection = 'column';
-    initApp();
+    // 再ロックからの解錠では作り直さない（書きかけの日記を消さないため）
+    if (!appInitialized) { initApp(); appInitialized = true; }
+    resetIdleTimer();   // 解錠したら無操作タイマー開始
   } else {
     document.getElementById('pin-error').textContent = 'PINが違います';
     pinInput = '';
     updatePinDisplay();
   }
 }
+
+// ============================================================
+// 自動再ロック（ゆるめ設定）
+//   ・アプリを RELOCK_BG_MS 以上バックグラウンドに置いて戻ったら再ロック
+//     （数十秒のアプリ切り替え程度では聞かれない）
+//   ・IDLE_MS のあいだ無操作なら再ロック
+//   いずれも再ロック後は PIN の再入力が必要。データは消えない。
+// ============================================================
+const RELOCK_BG_MS = 60 * 1000;        // 1分以上バックグラウンドにいたら
+const IDLE_MS      = 12 * 60 * 1000;   // 12分間まったく操作がなければ
+let bgHiddenAt = null;
+let idleTimer  = null;
+let appInitialized = false;
+
+function isUnlocked() {
+  return document.getElementById('lock-screen').style.display === 'none';
+}
+
+function lockApp() {
+  if (!isUnlocked()) return;           // すでにロック中なら何もしない
+  clearTimeout(idleTimer);
+  pinInput = '';
+  updatePinDisplay();
+  document.getElementById('pin-error').textContent = '';
+  document.getElementById('app').style.display = 'none';
+  document.getElementById('lock-screen').style.display = 'flex';
+}
+
+function resetIdleTimer() {
+  if (!isUnlocked()) return;
+  clearTimeout(idleTimer);
+  idleTimer = setTimeout(lockApp, IDLE_MS);
+}
+
+// 解錠中のユーザー操作で無操作タイマーを延長する
+['click', 'keydown', 'touchstart', 'input'].forEach(ev =>
+  document.addEventListener(ev, resetIdleTimer, { passive: true }));
+
+// バックグラウンドから戻ったとき、一定時間以上離れていたら再ロック
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) {
+    bgHiddenAt = Date.now();
+  } else {
+    if (bgHiddenAt && Date.now() - bgHiddenAt > RELOCK_BG_MS) lockApp();
+    bgHiddenAt = null;
+    resetIdleTimer();
+  }
+});
 
 // ============================================================
 // アプリ初期化
